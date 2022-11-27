@@ -1,0 +1,56 @@
+Config(
+    // pixels
+    image_width: 768,
+    image_height: 768,
+
+    // board dimensions measured in the diameter of a particle
+    board_width: 256,
+    board_height: 256,
+
+    // structure of the bounding volume optimization
+    // shouldn't exceed board_width divided by max_radius
+    bounding_rect_cols: 16,
+    // shouldn't exceed board_height divided by max_radius
+    bounding_rect_rows: 16,
+
+    particle_count: 300,
+
+    // particle types or colors
+    type_count: 5,
+
+    // simulation ticks per drawn frame
+    iterations_per_frame: 20,
+
+    // None - use a random seed and print it, Some(n) - use the seed n
+    color_rng_seed: None,
+
+    // None - will not save frames, Some(p) - will save each drawn frame as a png image to the directory p
+    // Example: Some("frames") will save frames to "[project directory]/frames"
+    save_frames_to_path: None,
+
+    // The seed for particle-to-particle pushing and pulling, and chemistry
+    // None - use a random seed and print it, Some(n) - use the seed n
+    rule_rng_seed: None,
+
+    // The seed for placing particles at the begining of the simulation
+    // None - use a random seed and print it, Some(n) - use the seed n
+    initial_state_rng_seed: None,
+
+    // when particles are touching, how strongly to push them apart
+    touching_pushing_acc: 0.1,
+
+    // similar to air resistance
+    resistance: 0.04,
+
+    // how strongly can particles pull and push each other when in radius
+    max_field_pulling_acc: 0.001,
+    max_field_pushing_acc: 0.001,
+
+    // max radius for particles to interact
+    // shouldn't exceed board_width divided by bounding_rect_cols or board_height divided by bounding_rect_rows
+    max_radius: 16,
+
+    // when a particle touches another particle of a catalyzing type, the type of the first particle changes
+    // true - generate and use chemistry, false - no chemistry
+    generate_chemistry: false,
+)

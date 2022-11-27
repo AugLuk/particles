@@ -1,76 +1,76 @@
+mod config;
 mod vec2;
 mod particle;
 mod particle_type;
 mod board;
-mod color;
 
 use std::{fs, path};
 use std::fs::OpenOptions;
 use std::io::BufWriter;
-use configparser::ini::Ini;
-use rand::Rng;
+use rand::{Rng, thread_rng};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::rect::Rect;
 use crate::board::Board;
+use crate::config::Config;
 
 fn main() -> Result<(), String> {
-    // println!("Running setup...");
-
     // ---------------------------------------------------------------------------------------------
     // Read the config file
     // ---------------------------------------------------------------------------------------------
 
-    let config_str = fs::read_to_string("config.ini").expect("Error while reading the configuration file.");
-    let mut config = Ini::new();
-    let _ = config.read(config_str);
-
-    let image_width = config.getuint("default", "image_width").unwrap().unwrap() as usize;
-    let image_height = config.getuint("default", "image_height").unwrap().unwrap() as usize;
-
-    let use_procedural_colors = config.getbool("default", "use_procedural_colors").unwrap().unwrap();
-    let color_rng_seed = config.getuint("default", "color_rng_seed").unwrap().unwrap();
-
-    let save_frames = config.getbool("default", "save_frames").unwrap().unwrap();
-
-    let iterations_per_frame = config.getuint("default", "iterations_per_frame").unwrap().unwrap() as usize;
-
-    let use_random_rule_rng_seed = config.getbool("default", "use_random_rule_rng_seed").unwrap().unwrap();
-    let rule_rng_seed = config.getuint("default", "rule_rng_seed").unwrap().unwrap();
-    let initial_state_rng_seed = config.getuint("default", "initial_state_rng_seed").unwrap().unwrap();
-
-    let particle_count = config.getuint("default", "particle_count").unwrap().unwrap() as usize;
-    let type_count = config.getuint("default", "type_count").unwrap().unwrap() as usize;
-
-    let board_width = config.getfloat("default", "board_width").unwrap().unwrap();
-    let board_height = config.getfloat("default", "board_height").unwrap().unwrap();
-
-    let bounding_rect_cols = config.getuint("default", "bounding_rect_cols").unwrap().unwrap() as usize;
-    let bounding_rect_rows = config.getuint("default", "bounding_rect_rows").unwrap().unwrap() as usize;
-
-    let touching_pushing_acc = config.getfloat("default", "touching_pushing_acc").unwrap().unwrap();
-    let resistance = config.getfloat("default", "resistance").unwrap().unwrap();
-    let max_field_pulling_acc = config.getfloat("default", "max_field_pulling_acc").unwrap().unwrap();
-    let max_field_pushing_acc = config.getfloat("default", "max_field_pushing_acc").unwrap().unwrap();
-    let max_radius = config.getfloat("default", "max_radius").unwrap().unwrap();
-
-    let use_chemistry = config.getbool("default", "use_chemistry").unwrap().unwrap();
-
+    let config_str = fs::read_to_string("config.ron").expect("Error while reading the configuration file.");
+    let config: Config = ron::from_str(&config_str).expect("Error while reading the configuration file.");
 
     // ---------------------------------------------------------------------------------------------
     // Initialize the simulation state
     // ---------------------------------------------------------------------------------------------
 
-    let rule_rng_seed = if use_random_rule_rng_seed {
-        let val = rand::thread_rng().gen();
-        println!("rule_rng_seed = {}", val);
-        val
-    } else {
-        rule_rng_seed
+    let procedural_color_rng_seed = match config.color_rng_seed {
+        Some(v) => v,
+        None => {
+            let v = thread_rng().gen();
+            println!("Color rng seed = {}", v);
+            v
+        },
     };
 
-    let mut board = Board::new(particle_count, type_count, board_width, board_height, bounding_rect_cols, bounding_rect_rows, touching_pushing_acc, resistance, max_field_pulling_acc, max_field_pushing_acc, max_radius, use_procedural_colors, use_chemistry, color_rng_seed, rule_rng_seed, initial_state_rng_seed);
+    let rule_rng_seed = match config.rule_rng_seed {
+        Some(v) => v,
+        None => {
+            let v = thread_rng().gen();
+            println!("Rule rng seed = {}", v);
+            v
+        },
+    };
+
+    let initial_state_rng_seed = match config.initial_state_rng_seed {
+        Some(v) => v,
+        None => {
+            let v = thread_rng().gen();
+            println!("Initial state rng seed = {}", v);
+            v
+        },
+    };
+
+    let mut board = Board::new(
+        config.particle_count,
+        config.type_count,
+        config.board_width,
+        config.board_height,
+        config.bounding_rect_cols,
+        config.bounding_rect_rows,
+        config.touching_pushing_acc,
+        config.resistance,
+        config.max_field_pulling_acc,
+        config.max_field_pushing_acc,
+        config.max_radius,
+        config.generate_chemistry,
+        procedural_color_rng_seed,
+        rule_rng_seed,
+        initial_state_rng_seed,
+    );
 
     // ---------------------------------------------------------------------------------------------
     // SDL2 setup
@@ -82,8 +82,8 @@ fn main() -> Result<(), String> {
     let window = video_subsys
         .window(
             "Simulated Annealing Matrix",
-            (image_width) as u32,
-            (image_height) as u32,
+            (config.image_width) as u32,
+            (config.image_height) as u32,
         )
         .position_centered()
         .opengl()
@@ -100,8 +100,6 @@ fn main() -> Result<(), String> {
 
     canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
     canvas.clear();
-
-    // println!("Setup complete.");
 
     // ---------------------------------------------------------------------------------------------
     // Main loop
@@ -144,7 +142,7 @@ fn main() -> Result<(), String> {
         if simulate_continuously || simulate_once {
             simulate_once = false;
 
-            for _ in 0..iterations_per_frame {
+            for _ in 0..config.iterations_per_frame {
                 board.simulate();
             }
         }
@@ -163,9 +161,9 @@ fn main() -> Result<(), String> {
 
                     let br = &board.bounding_rects[by * board.br_count_x + bx];
                     for p in br.iter() {
-                        let px = ((p.pos.x + ox) * (image_width as f64 / board.width)).round() as i16;
-                        let py = ((p.pos.y + oy) * (image_height as f64 / board.height)).round() as i16;
-                        let r = (image_height as f64 / board.height / 2.0).round() as i16;
+                        let px = ((p.pos.x + ox) * (config.image_width as f64 / board.width)).round() as i16;
+                        let py = ((p.pos.y + oy) * (config.image_height as f64 / board.height)).round() as i16;
+                        let r = (config.image_height as f64 / board.height / 2.0).round() as i16;
                         let color = board.particle_types[p.type_idx].color;
 
                         let _ = canvas.filled_circle(px, py, r, color);
@@ -173,28 +171,31 @@ fn main() -> Result<(), String> {
                 }
             }
 
-            if save_frames {
-                let img_data = canvas.read_pixels(Rect::new(0, 0, image_width as u32, image_height as u32), sdl2::pixels::PixelFormatEnum::RGB888).unwrap();
+            match &config.save_frames_to_path {
+                Some(path) => {
+                    let img_data = canvas.read_pixels(Rect::new(0, 0, config.image_width as u32, config.image_height as u32), sdl2::pixels::PixelFormatEnum::RGB888).unwrap();
 
-                let path_string = format!("output/frame_{:0>4}.png", frame_idx);
-                let path = path::Path::new(&path_string);
-                let prefix = path.parent().unwrap();
-                fs::create_dir_all(prefix).unwrap();
-                let file = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .open(path)
-                    .unwrap();
-                let ref mut w = BufWriter::new(file);
+                    let path_string = format!("{}/frame_{:0>4}.png", path, frame_idx);
+                    let path = path::Path::new(&path_string);
+                    let prefix = path.parent().unwrap();
+                    fs::create_dir_all(prefix).unwrap();
+                    let file = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .open(path)
+                        .unwrap();
+                    let ref mut w = BufWriter::new(file);
 
-                let mut encoder = png::Encoder::new(w, image_width as u32, image_height as u32);
-                encoder.set_color(png::ColorType::Rgb);
-                encoder.set_depth(png::BitDepth::Eight);
-                let mut writer = encoder.write_header().unwrap();
+                    let mut encoder = png::Encoder::new(w, config.image_width as u32, config.image_height as u32);
+                    encoder.set_color(png::ColorType::Rgb);
+                    encoder.set_depth(png::BitDepth::Eight);
+                    let mut writer = encoder.write_header().unwrap();
 
-                let img_data= img_data.chunks(4).flat_map(|chunk| [chunk[2], chunk[1], chunk[0]]).collect::<Vec<_>>();
+                    let img_data = img_data.chunks(4).flat_map(|chunk| [chunk[2], chunk[1], chunk[0]]).collect::<Vec<_>>();
 
-                writer.write_image_data(&img_data).unwrap();
+                    writer.write_image_data(&img_data).unwrap();
+                },
+                None => {},
             }
 
             frame_idx += 1;
@@ -202,10 +203,6 @@ fn main() -> Result<(), String> {
 
         canvas.present();
     }
-
-    // ---------------------------------------------------------------------------------------------
-    // Ending tasks
-    // ---------------------------------------------------------------------------------------------
 
     Ok(())
 }

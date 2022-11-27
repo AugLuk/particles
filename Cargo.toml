@@ -8,13 +8,10 @@ edition = "2021"
 [dependencies]
 rand = "0.8.5"
 rand_xoshiro = "0.6.0"
-configparser = "3.0.2"
+serde = "1.0.147"
+ron = "0.8.0"
 png = "0.17.6"
-
-[dependencies.sdl2]
-version = "0.35.2"
-default-features = false
-features = ["ttf","image","gfx","mixer"]
+sdl2 = { version = "0.35.2", features = ["gfx"] }
 
 [profile.release-lto]
 inherits = "release"
