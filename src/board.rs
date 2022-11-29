@@ -111,7 +111,7 @@ impl Board {
                 let br_x_minus = (br_x as isize - 1).rem_euclid(self.br_count_x as isize) as usize;
                 let br_x_plus = (br_x + 1).rem_euclid(self.br_count_x);
 
-                let br_idx_and_offsets_vec = vec![
+                let br_idxs_and_p_offsets = vec![
                     (br_y * self.br_count_x + br_x_plus, self.br_width, 0.0),
                     (br_y_plus * self.br_count_x + br_x_minus, -self.br_width, self.br_height),
                     (br_y_plus * self.br_count_x + br_x, 0.0, self.br_height),
@@ -120,55 +120,49 @@ impl Board {
 
                 let this_br_idx = br_y * self.br_count_x + br_x;
 
-                let mut idx_and_offsets_vec_before = vec![];
-                let mut idx_and_offsets_vec_after = vec![];
-                for idx_and_offsets in br_idx_and_offsets_vec.iter() {
-                    let (idx, _, _) = idx_and_offsets;
+                let mut br_idxs_and_p_offsets_before_this = vec![];
+                let mut br_idxs_and_p_offsets_after_this = vec![];
+                for idx_and_offset in br_idxs_and_p_offsets.iter() {
+                    let (idx, _, _) = idx_and_offset;
                     if *idx < this_br_idx {
-                        idx_and_offsets_vec_before.push(*idx_and_offsets);
+                        br_idxs_and_p_offsets_before_this.push(*idx_and_offset);
                     } else {
-                        idx_and_offsets_vec_after.push(*idx_and_offsets);
+                        br_idxs_and_p_offsets_after_this.push(*idx_and_offset);
                     }
                 }
 
-                idx_and_offsets_vec_before.sort_by(|(idx1, _, _), (idx2, _, _)| idx1.cmp(idx2));
-                idx_and_offsets_vec_after.sort_by(|(idx1, _, _), (idx2, _, _)| idx1.cmp(idx2));
-
-                let mut last_idx = 0;
-                for (i, idx_and_offsets) in idx_and_offsets_vec_before.iter_mut().enumerate() {
-                    let (idx, ox, oy) = idx_and_offsets;
-                    let temp = last_idx;
-                    last_idx = *idx;
-                    *idx_and_offsets = (*idx - temp - if i == 0 { 0 } else { 1 }, *ox, *oy);
-                }
-                let mut last_idx = this_br_idx + 1;
-                for (i, idx_and_offsets) in idx_and_offsets_vec_after.iter_mut().enumerate() {
-                    let (idx, ox, oy) = idx_and_offsets;
-                    let temp = last_idx;
-                    last_idx = *idx;
-                    *idx_and_offsets = (*idx - temp - if i == 0 { 0 } else { 1 }, *ox, *oy);
-                }
+                br_idxs_and_p_offsets_before_this.sort_by(|(idx1, _, _), (idx2, _, _)| idx1.cmp(idx2));
+                br_idxs_and_p_offsets_after_this.sort_by(|(idx1, _, _), (idx2, _, _)| idx1.cmp(idx2));
 
                 let (brs_before, brs_temp) = self.bounding_rects.split_at_mut(this_br_idx);
                 let (brs_temp, brs_after) = brs_temp.split_at_mut(1);
                 let this_br = &mut brs_temp[0];
 
-                let mut brs_and_offsets_vec_before = vec![];
+                let mut brs_and_p_offsets_before_this = vec![];
                 let mut brs_before_iter = brs_before.iter_mut();
-                for (idx, ox, oy) in idx_and_offsets_vec_before.iter() {
-                    brs_and_offsets_vec_before.push((brs_before_iter.nth(*idx).unwrap().as_mut_slice(), *ox, *oy));
+                let mut last_idx = 0;
+                for (i, (idx, ox, oy)) in br_idxs_and_p_offsets_before_this.iter().enumerate() {
+                    let temp = last_idx;
+                    last_idx = *idx;
+                    let nth = *idx - temp - if i == 0 { 0 } else { 1 };
+                    brs_and_p_offsets_before_this.push((brs_before_iter.nth(nth).unwrap().as_mut_slice(), *ox, *oy));
                 }
+
+                let mut brs_and_p_offsets_after_this = vec![];
                 let mut brs_after_iter = brs_after.iter_mut();
-                let mut brs_and_offsets_vec_after = vec![];
-                for (idx, ox, oy) in idx_and_offsets_vec_after.iter() {
-                    brs_and_offsets_vec_after.push((brs_after_iter.nth(*idx).unwrap().as_mut_slice(), *ox, *oy));
+                let mut last_idx = this_br_idx + 1;
+                for (i, (idx, ox, oy)) in br_idxs_and_p_offsets_after_this.iter().enumerate() {
+                    let temp = last_idx;
+                    last_idx = *idx;
+                    let nth = *idx - temp - if i == 0 { 0 } else { 1 };
+                    brs_and_p_offsets_after_this.push((brs_after_iter.nth(nth).unwrap().as_mut_slice(), *ox, *oy));
                 }
 
                 for p_idx in 0..this_br.len() {
                     let mut this_br_iter = this_br.iter_mut().skip(p_idx);
                     let p = this_br_iter.next().unwrap();
 
-                    for (ps, ox, oy) in brs_and_offsets_vec_before.iter_mut().chain(brs_and_offsets_vec_after.iter_mut()) {
+                    for (ps, ox, oy) in brs_and_p_offsets_before_this.iter_mut().chain(brs_and_p_offsets_after_this.iter_mut()) {
                         for other_p in ps.iter_mut() {
                             Self::interact(p, other_p, *ox, *oy, &self.particle_types, self.touching_pushing_acc);
                         }
